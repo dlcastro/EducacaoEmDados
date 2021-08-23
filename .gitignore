@@ -2,6 +2,10 @@
 .Rhistory
 .Rapp.history
 
+#Data files
+*.xlsx
+*.csv
+
 # Session Data files
 .RData
 
@@ -10,6 +14,10 @@
 
 # Example code in package build process
 *-Ex.R
+*-RawTratamento.R
+
+#Folder to be ignored
+RawData/
 
 # Output files from R CMD build
 /*.tar.gz
