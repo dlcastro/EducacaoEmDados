@@ -5,6 +5,9 @@
 #Data files
 *.xlsx
 *.csv
+*.RDS
+*.Rds
+*.rds
 
 # Session Data files
 .RData
