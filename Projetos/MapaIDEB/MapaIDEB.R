@@ -7,7 +7,7 @@
 #PACOTES
 library(pacman)
 p_load(data.table,tidyverse, purrr, readxl, dplyr, stringr)
-p_load(tmap, leaflet, ggplot2)
+
 
 
 
@@ -62,30 +62,56 @@ Escolas <- EscolasFinal <-  Db %>%
 #
 # source("Projetos/MapaIDEB/GoogleGeoCode_MapaIDEB.R")
 
+EscolasFinal <- readRDS("Projetos/MapaIDEB/Dados/GEOCODE_ESCOLAS_BRASIL_FINALIZADO.RDS")
 
-
+#COORTE NOTAS: https://ajuda.focoescola.com.br/hc/pt-br/articles/360058736853-Como-%C3%A9-definido-o-padr%C3%A3o-de-desempenho-dos-alunos-para-os-resultados-do-Saeb-
   
-IDEB <- Db %>% 
-  select(ID_ESCOLA,CATEGORIA, contains(c("VL_OBSERVADO"))) %>%  #selecionar notas do IDEB e o código da escola
-  mutate(across(contains("VL_OBSERVADO"), as.numeric)) %>% 
-  pivot_longer(contains("VL_OBSERVADO")) %>% 
+NOTAS <- Db %>% 
+  select(ID_ESCOLA,CATEGORIA, contains(c("NOTA_MATEMATICA","NOTA_PORTUGUES"))) %>%  #selecionar notas do IDEB e o código da escola
+  mutate(across(contains("NOTA"), as.numeric)) %>% 
+  pivot_longer(contains("NOTA")) %>% 
   na.omit() %>% 
-  mutate(ANO = substr(name, 14,17)) %>% 
-  select(ID_ESCOLA,CATEGORIA, ANO, IDEB = value)%>% 
+  mutate(ANO = str_extract(name,"\\d{4}"),
+         TIPO_NOTA = str_extract(name,"\\MATEMATICA"),
+         TIPO_NOTA = ifelse(is.na(TIPO_NOTA),"PORTUGUES",TIPO_NOTA),
+         name = paste0("NOTA_",TIPO_NOTA)) %>% 
+  rename(NOTA = value) %>% 
+  select(-TIPO_NOTA) %>% 
+  pivot_wider(values_from = NOTA,names_from = name)%>% 
+  mutate(CATEGORIA_PORTUGUES = case_when(CATEGORIA=="AI" & NOTA_PORTUGUES<200 ~ 1,
+                                          CATEGORIA=="AI" & NOTA_PORTUGUES>=200 & NOTA_PORTUGUES<=250 ~ 2,
+                                          CATEGORIA=="AI" & NOTA_PORTUGUES>250 ~ 3,
+                                         
+                                         CATEGORIA=="AF" & NOTA_PORTUGUES<275 ~ 1,
+                                         CATEGORIA=="AF" & NOTA_PORTUGUES>=275 & NOTA_PORTUGUES<=325 ~ 2,
+                                         CATEGORIA=="AF" & NOTA_PORTUGUES>325 ~ 3)) %>% 
+  
+  mutate(CATEGORIA_MATEMATICA = case_when(CATEGORIA=="AI" & NOTA_MATEMATICA<225 ~ 1,
+                                         CATEGORIA=="AI" & NOTA_MATEMATICA>=225 & NOTA_MATEMATICA<275 ~ 2,
+                                         CATEGORIA=="AI" & NOTA_MATEMATICA>=275 ~ 3,
+                                         
+                                         CATEGORIA=="AF" & NOTA_MATEMATICA<300 ~ 1,
+                                         CATEGORIA=="AF" & NOTA_MATEMATICA>=300 & NOTA_MATEMATICA<=350 ~ 2,
+                                         CATEGORIA=="AF" & NOTA_MATEMATICA>350 ~ 3)
+         ) %>% 
   left_join(EscolasFinal, by = "ID_ESCOLA" )
 
 
-saveRDS(IDEB, "Projetos/MapaIDEB/Dados/0-IDEB_FINAL.RDS")
-write.csv(IDEB, "Projetos/MapaIDEB/Dados/0-IDEB_FINAL.csv")
+#Salvar bases
+map(Bases, function(x){
+  
+modelo <-   NOTAS %>% 
+    filter(CATEGORIA=={{x}})
+  
+saveRDS(modelo,paste0("Projetos/MapaIDEB/Resultado/0-NOTAS_SAEB_",x,".RDS"))
+write.csv(modelo,paste0("Projetos/MapaIDEB/Resultado/0-NOTAS_SAEB_",x,".csv"))
+
+})
+
+
+
 
 
 # Mapa --------------------------------------------------------------------
-# Brazil <- get_map(location = "Brazil",color = "bw", zoom = 4, maptype = "toner-lite")
-# IDEB_2019 <- IDEB %>% filter(ANO == 2019 & CATEGORIA == "AI")
-# BrazilSHP <- sf::st_read("Projetos/MAPAIDEB/Dados/SHP/UFEBRASIL.shp")
-# 
-# # ggmap(BrazilSHP) +
-# #   stat_density2d(data=IDEB_2019,  aes(x=Longitude, y=Latitude,color = IDEB, fill=..level.., alpha=..level..), geom="polygon")
-# 
-# tm_shape(BrazilSHP) + tm_borders(col = "blue") 
-#          
+#CRIAR NO QGIS
+#https://www.qgistutorials.com/en/docs/3/creating_heatmaps.html
